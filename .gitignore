@@ -1,7 +1,9 @@
 # add
 *_cashe__
 *__pycache__
-
+*.png
+*.csv
+*.txt
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

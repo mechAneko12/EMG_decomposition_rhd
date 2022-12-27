@@ -4,6 +4,7 @@
 *.png
 *.csv
 *.txt
+*.xlsx
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

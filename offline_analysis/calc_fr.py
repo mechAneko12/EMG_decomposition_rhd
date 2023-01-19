@@ -13,9 +13,9 @@ def st2fr(df_st: pd.DataFrame, len_sample: int=768, is_non_overlap=True) -> pd.D
         pd.DataFrame: DataFrame of firing rate.
     """
     if is_non_overlap:
-        df_fr = df_st.groupby(df_st.index // len_sample).sum()
+        df_fr = df_st.groupby(df_st.index // len_sample).sum().reset_index(drop=True)
     else:
-        df_fr = df_fr.rolling(len_sample).sum().dropna()
+        df_fr = df_st.rolling(len_sample).sum().dropna().reset_index(drop=True)
     return df_fr
 
 def label_fr(df_fr: pd.DataFrame, n_repeat: int, min_fr: int=10) -> pd.DataFrame:
@@ -35,6 +35,8 @@ def _label(i_row, index_transition, n_repeat):
         # index_transitionのどこの区間の間か
         if i_row < _index_transition:
             break
+        elif j == len(index_transition) - 1:#最後について
+            j = 0 
     
     # 偶数の区間では0を返す
     if j % 2 == 0:

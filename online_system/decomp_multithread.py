@@ -240,7 +240,7 @@ class RealtimeEmgProcessor():
                 
                 # spike_trains = np.concatenate((spike_trains_processsed1[:, 1:10], spike_trains_processsed2[:, 0:9]),1)
 
-                fr_new = np.sum(spike_trains_processsed1, axis=0)
+                fr_new = np.sum(spike_trains_processsed1, axis=0)[:, valid_index_mu]
                 
                 #print(fr_new)
                 # classification

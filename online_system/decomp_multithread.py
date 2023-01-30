@@ -8,6 +8,8 @@ import numpy as np
 import pandas as pd
 import pickle, json
 
+import serial
+
 path_model = '/'
 
 # load FastIca model
@@ -69,7 +71,7 @@ def readUint16(array, arrayIndex):
     return variable, arrayIndex
 
 class RealtimeEmgProcessor():
-    def __init__(self, channel_names: list, numBlocks: int) -> None:
+    def __init__(self, channel_names: list, numBlocks: int, commands=None, com_number=None) -> None:
         self.event = threading.Event()
         self.scommand, self.swaveform, self.timestep = self._init_rhd(channel_names)
         
@@ -83,6 +85,12 @@ class RealtimeEmgProcessor():
         self.numBlocks = numBlocks
 
         self.blocksAmplifierData = []
+
+        if com_number:
+            self.commands = commands
+            self.ser = serial.Serial('COM' + str(com_number), 9600)
+        else:
+            self.ser = None
     
     def _init_rhd(self, channel_names: list):
         # Declare buffer size for reading from TCP command socket
@@ -244,8 +252,11 @@ class RealtimeEmgProcessor():
                 
                 #print(fr_new)
                 # classification
-                label_predicted = svm_clf.transform(fr_new)
+                label_predicted = int(svm_clf.transform(fr_new)[0])
                 print(label_predicted)
+                if self.ser:
+                    command = self.commands[label_predicted]
+                    self.ser.write(str(label_predicted))
                 #print(time.time()-s) 
                 
             else:
@@ -257,12 +268,14 @@ class RealtimeEmgProcessor():
                 _ = input()
             except KeyboardInterrupt:
                 self.scommand.sendall(b'set runmode stop')
+                self.ser.close()
                 time.sleep(0.1)
                 print('end processor...')
                 sys.exit()
 
 if __name__ == '__main__':
     realtime_emg_processor = RealtimeEmgProcessor(['b'], 6)
+    # realtime_emg_processor = RealtimeEmgProcessor(['b'], 6, commands=['r', 'a', 'b', 'c', 'd', 'e'], com_number=3)
     
     emg_getter = threading.Thread(target=realtime_emg_processor.emg_getter,)
     emg_getter.setDaemon(True)

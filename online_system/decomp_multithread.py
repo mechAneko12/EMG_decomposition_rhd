@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 import pickle, json
 
+from scipy import stats
 import serial
 
 path_model = '/'
@@ -69,6 +70,23 @@ def readUint16(array, arrayIndex):
     variable = int.from_bytes(variableBytes, byteorder='little', signed=False)
     arrayIndex = arrayIndex + 2
     return variable, arrayIndex
+
+def st2fr(df_st: pd.DataFrame, len_sample: int=768, is_non_overlap=True) -> pd.DataFrame:
+    """spike trsins to firing rate.
+
+    Args:
+        df_st (pd.DataFrame): DataFrame of spike trains.
+        len_sample (int, optional): length of each sample. Defaults to 768.
+        is_non_overlap (bool, optional): Each sample overlaps or not. Defaults to True.
+
+    Returns:
+        pd.DataFrame: DataFrame of firing rate.
+    """
+    if is_non_overlap:
+        df_fr = df_st.groupby(df_st.index // len_sample).sum().reset_index(drop=True)
+    else:
+        df_fr = df_st.rolling(len_sample).sum().dropna().reset_index(drop=True)
+    return df_fr
 
 class RealtimeEmgProcessor():
     def __init__(self, channel_names: list, numBlocks: int, commands=None, com_number=None) -> None:
@@ -248,15 +266,15 @@ class RealtimeEmgProcessor():
                 
                 # spike_trains = np.concatenate((spike_trains_processsed1[:, 1:10], spike_trains_processsed2[:, 0:9]),1)
 
-                fr_new = np.sum(spike_trains_processsed1, axis=0)[:, valid_index_mu]
+                fr_new = st2fr(pd.DataFrame(spike_trains_processsed1), is_non_overlap=False).values
                 
                 #print(fr_new)
                 # classification
-                label_predicted = int(svm_clf.transform(fr_new)[0])
+                label_predicted = int(stats.mode(svm_clf.transform(fr_new))[0][0])
                 print(label_predicted)
                 if self.ser:
                     command = self.commands[label_predicted]
-                    self.ser.write(str(label_predicted))
+                    self.ser.write(command)
                 #print(time.time()-s) 
                 
             else:

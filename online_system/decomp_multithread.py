@@ -13,6 +13,8 @@ import serial
 
 path_model = '/'
 
+list_label_predicted = []
+
 # load FastIca model
 with open(path_model + 'all_fastica.pickle', 'rb') as f:
     emg_FastICA1 = pickle.load(f)
@@ -109,6 +111,8 @@ class RealtimeEmgProcessor():
             self.ser = serial.Serial('COM' + str(com_number), 9600)
         else:
             self.ser = None
+        
+        self.fr_pre = None
     
     def _init_rhd(self, channel_names: list):
         # Declare buffer size for reading from TCP command socket
@@ -266,11 +270,17 @@ class RealtimeEmgProcessor():
                 
                 # spike_trains = np.concatenate((spike_trains_processsed1[:, 1:10], spike_trains_processsed2[:, 0:9]),1)
 
-                fr_new = st2fr(pd.DataFrame(spike_trains_processsed1), is_non_overlap=False).values
+                fr_all = st2fr(pd.DataFrame(spike_trains_processsed1), is_non_overlap=False).values
+                fr_new = fr_all[:, valid_index_mu]
+                if self.fr_pre:
+                    fr_new = np.concatenate([self.fr_pre[-128:], fr_new])
+                else:
+                    pass
                 
                 #print(fr_new)
                 # classification
                 label_predicted = int(stats.mode(svm_clf.transform(fr_new))[0][0])
+                list_label_predicted.append(label_predicted)
                 print(label_predicted)
                 if self.ser:
                     command = self.commands[label_predicted]
@@ -287,6 +297,7 @@ class RealtimeEmgProcessor():
             except KeyboardInterrupt:
                 self.scommand.sendall(b'set runmode stop')
                 self.ser.close()
+                pd.DataFrame(list_label_predicted).to_csv(path_model + 'label_predicted.csv')
                 time.sleep(0.1)
                 print('end processor...')
                 sys.exit()

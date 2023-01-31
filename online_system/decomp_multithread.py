@@ -9,9 +9,10 @@ import pandas as pd
 import pickle, json
 
 from scipy import stats
-import serial
+import serial, copy
 
-path_model = '/'
+
+path_model = 'online_system/__cashe__/hashimoto_five_230131_153832_mu20/'
 
 list_label_predicted = []
 
@@ -25,9 +26,9 @@ for j in range(20):
     with open(path_model + f'kmeans_{str(j)}.pickle', 'rb') as f:
         list_kmeans.append(pickle.load(f))
 
-with open(path_model + f'all_sil.json', 'rb') as f:
-    d = json.load(f)
-valid_index_mu = d['valid_index_mu']
+# with open(path_model + f'all_sil.json', 'rb') as f:
+#     d = json.load(f)
+# valid_index_mu = d['valid_index_mu']
 
 with open(path_model + 'svc.pickle', 'rb') as f:
     svm_clf = pickle.load(f)
@@ -94,12 +95,6 @@ class RealtimeEmgProcessor():
     def __init__(self, channel_names: list, numBlocks: int, commands=None, com_number=None) -> None:
         self.event = threading.Event()
         self.scommand, self.swaveform, self.timestep = self._init_rhd(channel_names)
-        
-        self.sos = self._init_filter_bandpass()
-        self.comb_b1, self.comb_a1 = self._init_filter_comb1()
-        self.comb_b2, self.comb_a2 = self._init_filter_comb2()
-        self.comb_b3, self.comb_a3 = self._init_filter_comb3()
-        self.comb_b4, self.comb_a4 = self._init_filter_comb4()
         
         self.channel_names = channel_names
         self.numBlocks = numBlocks
@@ -234,6 +229,7 @@ class RealtimeEmgProcessor():
     def emg_processor(self):
         #s = time.time()
         #old_data=np.zeros((377,128))
+        s = time.time()
         while True:
             if self.event.is_set():  # 配列が用意されているか確認
                 # Scale this sample to convert to microVolts
@@ -270,21 +266,27 @@ class RealtimeEmgProcessor():
                 
                 # spike_trains = np.concatenate((spike_trains_processsed1[:, 1:10], spike_trains_processsed2[:, 0:9]),1)
 
-                fr_all = st2fr(pd.DataFrame(spike_trains_processsed1), is_non_overlap=False).values
-                fr_new = fr_all[:, valid_index_mu]
-                if self.fr_pre:
-                    fr_new = np.concatenate([self.fr_pre[-128:], fr_new])
-                else:
-                    pass
+                
+                # if self.fr_pre is not None:
+                #     fr_all = st2fr(pd.DataFrame(spike_trains_processsed1), is_non_overlap=False).values
+                #     fr_new = fr_all[:, [x for x in range(20)]]
+                #     fr_new = np.concatenate([self.fr_pre[-128:], fr_new], axis=0)
+                    
+                # else:
+                fr_all = np.array([spike_trains_processsed1.sum(axis=0)])
+                fr_new = fr_all[:, [x for x in range(20)]]
+                #self.fr_pre = copy.copy(fr_new)
                 
                 #print(fr_new)
                 # classification
-                label_predicted = int(stats.mode(svm_clf.transform(fr_new))[0][0])
+                #label_predicted = int(stats.mode(svm_clf.predict(fr_new))[0][0])
+                label_predicted = int(svm_clf.predict(fr_new)[0])
                 list_label_predicted.append(label_predicted)
-                print(label_predicted)
-                if self.ser:
+                #print(label_predicted)
+                if self.ser and time.time()-s>0.2:
                     command = self.commands[label_predicted]
-                    self.ser.write(command)
+                    self.ser.write(command.encode())
+                    s = time.time()
                 #print(time.time()-s) 
                 
             else:
@@ -303,8 +305,8 @@ class RealtimeEmgProcessor():
                 sys.exit()
 
 if __name__ == '__main__':
-    realtime_emg_processor = RealtimeEmgProcessor(['b'], 6)
-    # realtime_emg_processor = RealtimeEmgProcessor(['b'], 6, commands=['r', 'a', 'b', 'c', 'd', 'e'], com_number=3)
+    #realtime_emg_processor = RealtimeEmgProcessor(['b'], 6)
+    realtime_emg_processor = RealtimeEmgProcessor(['b'], 6, commands=['r', 'a', 'b', 'c', 'd', 'e'], com_number=3)
     
     emg_getter = threading.Thread(target=realtime_emg_processor.emg_getter,)
     emg_getter.setDaemon(True)
